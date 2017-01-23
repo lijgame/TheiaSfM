@@ -97,7 +97,7 @@ SET(AKAZE_SRCS
     src/utils.cpp
     timer/timer.cpp)
 ADD_LIBRARY(akaze ${AKAZE_SRCS})
-TARGET_LINK_LIBRARIES(akaze ${EIGEN_LIBRARIES} ${CIMG_LIBRARIES})
+TARGET_LINK_LIBRARIES(akaze ${EIGEN_LIBRARIES} ${CIMG_LIBRARIES} pthread)
 
 # Demo program extracting akaze features.
 ADD_EXECUTABLE(akaze_features akaze_features.cpp)
