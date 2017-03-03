@@ -1,4 +1,4 @@
-// Copyright (C) 2016 The Regents of the University of California (Regents).
+// Copyright (C) 2017 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -31,47 +31,34 @@
 //
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
+// Author: Aleksander Holynski (holynski@cs.washington.edu)
 
-#include "theia/image/image_cache.h"
+#ifndef THEIA_IO_POPULATE_IMAGE_SIZES_H_
+#define THEIA_IO_POPULATE_IMAGE_SIZES_H_
 
-#include <memory>
 #include <string>
-
-#include "theia/image/image.h"
-#include "theia/util/filesystem.h"
-#include "theia/util/lru_cache.h"
-#include "theia/util/string.h"
 
 namespace theia {
 
-ImageCache::ImageCache(const std::string& image_directory,
-                       const int max_num_images_in_cache)
-    : image_directory_(image_directory) {
-  AppendTrailingSlashIfNeeded(&image_directory_);
+class Reconstruction;
 
-  // Set up the LRU image cache.
-  const std::function<std::shared_ptr<const FloatImage>(const std::string)>
-      fetch_images = std::bind(&ImageCache::FetchImagesFromDisk,
-                               this,
-                               std::placeholders::_1);
-  images_.reset(new ImageLRUCache(fetch_images, max_num_images_in_cache));
-}
-
-ImageCache::~ImageCache() {}
-
-const std::shared_ptr<const FloatImage> ImageCache::FetchImage(
-    const std::string& image_filename) const {
-  const std::shared_ptr<const FloatImage> image = images_->Fetch(image_filename);
-  return image;
-}
-
-std::shared_ptr<const FloatImage> ImageCache::FetchImagesFromDisk(
-    const std::string& image_filename) {
-  const std::string image_filepath = image_directory_ + image_filename;
-  CHECK(FileExists(image_filepath));
-  std::shared_ptr<const theia::FloatImage> image =
-      std::make_shared<const FloatImage>(image_filepath);
-  return image;
-}
+// Bundler files & image lists don't usually contain image sizes. This function
+// loads the images with names defined in the reconstruction from the
+// 'image_directory' folder. If any of the files defined in the reconstruction
+// do not exist, the function will return false (and no values will be changed
+// in the reconstruction), otherwise the function will return true. This
+// function is to be called after ReadBundlerFiles(). Assumes principal points
+// to be at the image center.
+//
+// Input params are as follows:
+//   image_directory: The directory containing all the image files from the
+//   reconstruction.
+//   reconstruction: A Theia Reconstruction containing the camera, track, and
+//       point cloud information. See theia/sfm/reconstruction.h for more
+//       information.
+bool PopulateImageSizesAndPrincipalPoints(const std::string& image_directory,
+                                          Reconstruction* reconstruction);
 
 }  // namespace theia
+
+#endif  // THEIA_IO_IMPORT_IMAGE_SIZES_H_
