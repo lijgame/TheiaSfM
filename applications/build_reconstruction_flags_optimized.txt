@@ -2,18 +2,18 @@
 # Input/output files.
 # Set these if a matches file is not present. Images should be a filepath with a
 # wildcard e.g., /home/my_username/my_images/*.jpg
---images=/home/lijiang/dataset/sheraton/*.JPG
---output_matches_file=/home/lijiang/dataset/sheraton_result/shraton_match
+--images=
+--output_matches_file=
 
 # If a matches file has already been created, set the filepath here. This avoids
 # having to recompute all features and matches.
---matches_file=/home/lijiang/dataset/sheraton_result/shraton_match
+--matches_file=
 
 # The calibration file indicates possibly known calibration e.g, from EXIF or
 # explicit calibration. Theia attempts to extract EXIF focal lengths if calibration
 # is not supplied for a given image.
 --calibration_file=
---output_reconstruction=/home/lijiang/dataset/sheraton_result/result
+--output_reconstruction=
 
 ############### Multithreading ###############
 # Set to the number of threads you want to use.
@@ -21,7 +21,7 @@
 
 ############### Feature Extraction ###############
 --descriptor=SIFT
---feature_density=NORMAL
+--feature_density=DENSE
 
 ############### Matching Options ###############
 # Perform matching out-of-core. If set to true, the matching_working_directory
@@ -32,7 +32,7 @@
 # During feature matching, features are saved to disk so that out-of-core
 # matching may be performed. This directory specifies which directory those
 # features should be saved to.
---matching_working_directory=/home/lijiang/dataset/sheraton_result/
+--matching_working_directory=
 
 # During feature matching we utilize an LRU cache for out-of-core matching. The size
 # of that cache (in terms of number of images) is controlled by this parameter. The
