@@ -225,7 +225,7 @@ bool WriteSparsePts(const std::string& ply_filepath, const Reconstruction& recon
 
     // Normalize the color.
     colors.emplace_back(track->Color().cast<int>());
-    track_views.emplace_back(track->ViewIds());
+    track_views.emplace_back(track->ViewIds().begin(),track->ViewIds().end());
   }
 
 	ply_file << "ply" << std::endl;
@@ -242,7 +242,7 @@ bool WriteSparsePts(const std::string& ply_filepath, const Reconstruction& recon
 	ply_file << "property list uchar int vertex_index" << std::endl;
 	ply_file << "end_header" << std::endl;
 
-  for(const auto i=0; i < positions.size(); ++i)
+  for(auto i=0; i < positions.size(); ++i)
   {
     const auto& pos = positions[i];
     const auto& c = colors[i];
