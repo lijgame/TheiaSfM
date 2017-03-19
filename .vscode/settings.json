@@ -2,7 +2,8 @@
 {
     "cmake.configureSettings":{
         "BUILD_TESTING":"OFF",
-        "OPENMP":"ON"
+        "OPENMP":"ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS":"ON"
     },
     "cmake.buildDirectory": "${workspaceRoot}/build"
 }
