@@ -88,6 +88,9 @@ target_link_libraries(write_reconstruction_ply_file theia ${GFLAGS_LIBRARIES} ${
 add_executable(export_reconstruction_to_pmvs export_reconstruction_to_pmvs.cc)
 target_link_libraries(export_reconstruction_to_pmvs theia ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES})
 
+add_executable(export_cams export_cams.cc)
+target_link_libraries(export_cams theia ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES})
+
 add_executable(create_calibration_file_from_exif create_calibration_file_from_exif.cc)
 target_link_libraries(create_calibration_file_from_exif theia ${GFLAGS_LIBRARIES} ${GLOG_LIBRARIES})
 

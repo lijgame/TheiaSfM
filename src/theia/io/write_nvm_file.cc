@@ -41,6 +41,7 @@
 
 #include "theia/sfm/reconstruction.h"
 #include "theia/sfm/camera/pinhole_camera_model.h"
+#include "theia/sfm/camera/pinhole_radial_tangential_camera_model.h"
 #include "theia/sfm/track.h"
 #include "theia/sfm/view.h"
 #include "theia/util/map_util.h"
@@ -141,6 +142,122 @@ bool WriteNVMFile(const std::string& nvm_filepath,
   nvm_file << "0" << std::endl;
   nvm_file.close();
   return true;
+}
+
+bool WriteCams(const std::string &cams_filepath, const Reconstruction &reconstruction)
+{
+  std::ofstream cams_file;
+  cams_file.open(cams_filepath);
+  if(!cams_file.is_open())
+  {
+      LOG(WARNING) << "Could not open cams file for writing: "<<cams_filepath;
+  }
+
+  const auto view_ids = reconstruction.ViewIds();
+  std::unordered_map<ViewId, int> view_id_to_index;
+  std::unordered_map<ViewId, std::unordered_map<TrackId, int> > feature_index_mapping;
+
+  for(const auto& vid :view_ids)
+  {
+    const int current_index = view_id_to_index.size();
+    view_id_to_index[vid] = current_index;
+    const auto& view = *reconstruction.View(vid);
+    cams_file << "\"" << vid << "\"" << std::endl;
+		cams_file << "\"" << view.Name() << "\"" << std::endl;
+    const auto& camera = view.Camera();
+    cams_file << camera.ImageWidth() << " " << camera.ImageHeight() << std::endl;
+
+    Matrix3x4d pmatrix;
+    camera.GetProjectionMatrix(&pmatrix);
+    Eigen::IOFormat fmt(Eigen::FullPrecision, Eigen::DontAlignCols, " ", " ", "", "", "", "");
+    cams_file << pmatrix.format(fmt) << std::endl;
+    switch(camera.GetCameraIntrinsicsModelType())
+    {
+      case CameraIntrinsicsModelType::PINHOLE:
+        cams_file << "35D " << camera.CameraIntrinsics().GetParameter(PinholeCameraModel::RADIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics().GetParameter(PinholeCameraModel::RADIAL_DISTORTION_2) << std::endl;
+        break;
+      case CameraIntrinsicsModelType::PINHOLE_RADIAL_TANGENTIAL:
+        cams_file << "357D_TD2 " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_2)
+				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_3)
+				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_2)
+				<< std::endl;
+        break;
+		  case  CameraIntrinsicsModelType::FISHEYE:
+			  cams_file << "3I 0" << std::endl;
+			  break;
+      default:
+        break;
+    }
+  }
+    cams_file.close();
+
+  return true;
+}
+
+bool WriteSparsePts(const std::string& ply_filepath, const Reconstruction& reconstruction)
+{
+  std::ofstream ply_file;
+  ply_file.open(ply_filepath);
+  if(!ply_file.is_open())
+  {
+      LOG(WARNING) << "Could not open cams file for writing: "<<ply_filepath;
+  }
+
+  const auto& track_ids = reconstruction.TrackIds();
+
+  // Output each point.
+  const auto nsize = track_ids.size();
+  std::vector<Eigen::Vector3d> positions;
+  positions.reserve(nsize);
+  std::vector<Eigen::Vector3i> colors;
+  colors.reserve(nsize);
+  std::vector<std::vector<ViewId>> track_views;
+
+  for (const TrackId track_id : track_ids) 
+  {
+    const Track* track = reconstruction.Track(track_id);
+    if(!track->IsEstimated())
+      continue;
+    positions.emplace_back(track->Point().hnormalized());
+
+    // Normalize the color.
+    colors.emplace_back(track->Color().cast<int>());
+    track_views.emplace_back(track->ViewIds());
+  }
+
+	ply_file << "ply" << std::endl;
+	ply_file << "format ascii 1.0" << std::endl;
+	ply_file << "element vertex " << positions.size() << std::endl;
+	ply_file << "property float x" << std::endl;
+	ply_file << "property float y" << std::endl;
+	ply_file << "property float z" << std::endl;
+  ply_file << "property uchar red" << std::endl;
+  ply_file << "property uchar green" << std::endl;
+  ply_file << "property uchar blue" << std::endl;
+	ply_file << "property list uchar int visibility" << std::endl;
+	ply_file << "element face 0" << std::endl;
+	ply_file << "property list uchar int vertex_index" << std::endl;
+	ply_file << "end_header" << std::endl;
+
+  for(const auto i=0; i < positions.size(); ++i)
+  {
+    const auto& pos = positions[i];
+    const auto& c = colors[i];
+    const auto& views = track_views[i];
+    ply_file << pos.x() << " " << pos.y() << " " << pos.z()
+             << " " << c.x() << " " << c.y() << " " << c.z() << " "
+             << views.size() << " ";
+    for (const ViewId& view_id : views) 
+    {
+      ply_file << view_id<<" ";
+    }
+  }
+  ply_file.close();
+	
+	return true;
 }
 
 }  // namespace theia

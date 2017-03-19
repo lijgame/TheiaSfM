@@ -46,6 +46,12 @@ class Reconstruction;
 bool WriteNVMFile(const std::string& nvm_filepath,
                   const Reconstruction& reconstruction);
 
+
+bool WriteCams( const std::string& cams_filepath,
+                const Reconstruction& reconstruction);
+
+bool WriteSparsePts(const std::string& ply_filepath, const Reconstruction& reconstruction);
 }  // namespace theia
+
 
 #endif  // THEIA_IO_WRITE_NVM_FILE_H_
