@@ -1,10 +1,10 @@
 {
   "variant": {
-    "label": "RelWithDebInfo",
+    "label": "Release",
     "keywordSettings": {
-      "buildType": "reldeb"
+      "buildType": "release"
     },
-    "description": "Perform optimizations AND include debugging information"
+    "description": "Enable optimizations, omit debug info"
   },
   "activeEnvironments": []
 }

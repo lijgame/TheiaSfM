@@ -4,5 +4,8 @@
         "BUILD_TESTING":"OFF",
         "OPENMP":"ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS":"ON"
+    },
+    "files.associations": {
+        "ratio": "cpp"
     }
 }
