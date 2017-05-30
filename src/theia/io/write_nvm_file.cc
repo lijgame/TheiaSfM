@@ -174,15 +174,15 @@ bool WriteCams(const std::string &cams_filepath, const Reconstruction &reconstru
     switch(camera.GetCameraIntrinsicsModelType())
     {
       case CameraIntrinsicsModelType::PINHOLE:
-        cams_file << "35D " << camera.CameraIntrinsics().GetParameter(PinholeCameraModel::RADIAL_DISTORTION_1)
-				<< " " << camera.CameraIntrinsics().GetParameter(PinholeCameraModel::RADIAL_DISTORTION_2) << std::endl;
+        cams_file << "35D " << camera.CameraIntrinsics()->GetParameter(PinholeCameraModel::RADIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics()->GetParameter(PinholeCameraModel::RADIAL_DISTORTION_2) << std::endl;
         break;
       case CameraIntrinsicsModelType::PINHOLE_RADIAL_TANGENTIAL:
-        cams_file << "357D_TD2 " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_1)
-				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_2)
-				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_3)
-				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_1)
-				<< " " << camera.CameraIntrinsics().GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_2)
+        cams_file << "357D_TD2 " << camera.CameraIntrinsics()->GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics()->GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_2)
+				<< " " << camera.CameraIntrinsics()->GetParameter(PinholeRadialTangentialCameraModel::RADIAL_DISTORTION_3)
+				<< " " << camera.CameraIntrinsics()->GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_1)
+				<< " " << camera.CameraIntrinsics()->GetParameter(PinholeRadialTangentialCameraModel::TANGENTIAL_DISTORTION_2)
 				<< std::endl;
         break;
 		  case  CameraIntrinsicsModelType::FISHEYE:
