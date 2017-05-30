@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Regents of the University of California (Regents).
+// Copyright (C) 2017 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,32 +32,28 @@
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
-#include <ceres/rotation.h>
-#include <Eigen/Core>
-#include <glog/logging.h>
-#include <algorithm>
+#ifndef THEIA_SFM_SET_OUTLIER_TRACKS_TO_UNESTIMATED_H_
+#define THEIA_SFM_SET_OUTLIER_TRACKS_TO_UNESTIMATED_H_
 
-#include "theia/sfm/camera/camera.h"
-#include "theia/sfm/twoview_info.h"
+#include <unordered_set>
+#include "theia/sfm/types.h"
 
 namespace theia {
+class Reconstruction;
 
-void SwapCameras(TwoViewInfo* twoview_info) {
-  CHECK_NE(twoview_info->focal_length_1, 0.0);
-  CHECK_NE(twoview_info->focal_length_2, 0.0);
-
-  // Swap the focal lengths.
-  std::swap(twoview_info->focal_length_1, twoview_info->focal_length_2);
-
-  // Invert the translation.
-  Eigen::Matrix3d rotation_mat;
-  ceres::AngleAxisToRotationMatrix(
-      twoview_info->rotation_2.data(),
-      ceres::ColumnMajorAdapter3x3(rotation_mat.data()));
-  twoview_info->position_2 = -rotation_mat * twoview_info->position_2;
-
-  // Invert the rotation.
-  twoview_info->rotation_2 *= -1.0;
-}
+// Removes features that have a reprojection error larger than the
+// reprojection error threshold. Additionally, any features that are poorly
+// constrained because of a small viewing angle are removed. Returns the number
+// of features removed. Only the input tracks are checked.
+int SetOutlierTracksToUnestimated(const std::unordered_set<TrackId>& tracks,
+                                  const double max_inlier_reprojection_error,
+                                  const double min_triangulation_angle_degrees,
+                                  Reconstruction* reconstruction);
+// Same as above, but checks all tracks.
+int SetOutlierTracksToUnestimated(const double max_inlier_reprojection_error,
+                                  const double min_triangulation_angle_degrees,
+                                  Reconstruction* reconstruction);
 
 }  // namespace theia
+
+#endif  // THEIA_SFM_SET_OUTLIER_TRACKS_TO_UNESTIMATED_H_
