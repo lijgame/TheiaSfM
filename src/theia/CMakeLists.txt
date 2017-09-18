@@ -32,6 +32,24 @@
 # Please contact the author of this library if you have any questions.
 # Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
+function(create_resource_file file output)
+    # Create empty output file
+    file(WRITE ${output} "")
+    # Get short filename
+    get_filename_component(filename "${file}" NAME)
+    # Replace filename spaces & extension separator for C compatibility
+    string(MAKE_C_IDENTIFIER ${filename} filename)
+    # Read hex data from file
+    file(READ ${file} filedata HEX)
+    # Convert hex data for C compatibility
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," filedata ${filedata})
+    # Append data to output file
+    file(WRITE ${output} "const char ${filename}[] = {${filedata}};\nconst size_t ${filename}_size = sizeof(${filename});\n")
+endfunction()
+
+create_resource_file("${PROJECT_SOURCE_DIR}/data/camera_sensor_database.txt" "${CMAKE_CURRENT_BINARY_DIR}/camera_sensor_database.h")
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
 # Add headers
 file(GLOB_RECURSE THEIA_HDRS *.h)
 
@@ -68,9 +86,11 @@ set(THEIA_SRC
   matching/feature_matcher_utils.cc
   matching/guided_epipolar_matcher.cc
   math/closed_form_polynomial_solver.cc
+  math/constrained_l1_solver.cc
   math/find_polynomial_roots_companion_matrix.cc
   math/find_polynomial_roots_jenkins_traub.cc
   math/matrix/sparse_cholesky_llt.cc
+  math/matrix/sparse_matrix.cc
   math/polynomial.cc
   math/probability/sequential_probability_ratio.cc
   math/rotation.cc
@@ -161,8 +181,11 @@ set(THEIA_SRC
   sfm/view.cc
   sfm/view_graph/orientations_from_maximum_spanning_tree.cc
   sfm/view_graph/remove_disconnected_view_pairs.cc
-  sfm/view_graph/triplet_extractor.cc
   sfm/view_graph/view_graph.cc
+  sfm/visibility_pyramid.cc
+  solvers/exhaustive_sampler.cc
+  solvers/prosac_sampler.cc
+  solvers/random_sampler.cc
   util/filesystem.cc
   util/random.cc
   util/stringprintf.cc
@@ -230,6 +253,7 @@ if (BUILD_TESTING)
   gtest(math/graph/connected_components)
   gtest(math/graph/minimum_spanning_tree)
   gtest(math/graph/normalized_graph_cut)
+  gtest(math/graph/triplet_extractor)
   gtest(math/l1_solver)
   gtest(math/matrix/gauss_jordan)
   gtest(math/matrix/rq_decomposition)
@@ -298,9 +322,9 @@ if (BUILD_TESTING)
   gtest(sfm/view)
   gtest(sfm/view_graph/orientations_from_maximum_spanning_tree)
   gtest(sfm/view_graph/remove_disconnected_view_pairs)
-  gtest(sfm/view_graph/triplet_extractor)
   gtest(sfm/view_graph/view_graph)
-  gtest(solvers/arrsac)
+  gtest(solvers/exhaustive_ransac)
+  gtest(solvers/exhaustive_sampler)
   gtest(solvers/evsac)
   gtest(solvers/lmed)
   gtest(solvers/prosac)
