@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Regents of the University of California (Regents).
+// Copyright (C) 2013 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,33 +32,54 @@
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
-#include "theia/sfm/reconstruction_estimator.h"
+#include "theia/sfm/pose/position_from_two_rays.h"
 
+#include <Eigen/Core>
+#include <Eigen/QR>
 #include <glog/logging.h>
-
-#include "theia/sfm/incremental_reconstruction_estimator.h"
-#include "theia/sfm/global_reconstruction_estimator.h"
-#include "theia/sfm/hybrid_reconstruction_estimator.h"
-#include "theia/sfm/reconstruction_estimator_options.h"
+#include <vector>
 
 namespace theia {
 
-ReconstructionEstimator* ReconstructionEstimator::Create(
-    const ReconstructionEstimatorOptions& options) {
-  switch (options.reconstruction_estimator_type) {
-    case ReconstructionEstimatorType::GLOBAL:
-      return new GlobalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::INCREMENTAL:
-      return new IncrementalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::HYBRID:
-      return new HybridReconstructionEstimator(options);
-      break;
-    default:
-      LOG(FATAL) << "Invalid reconstruction estimator specified.";
+// We use the reprojection error constraint:
+//
+//   rotated_feature = [x - cx; y - cy] / (z - cz)
+//
+// where the 3D point is [x y z]^t and the unknown position is [cx cy cz].
+// This constraint can be rearranged into a linear system:
+//
+//   [1  0  -u] * c = [x - u * z]
+//   [0  1  -v]     = [y - v * z]
+//
+// where rotated_feature = [u v]. By stacking this constraint for both features
+// we obtain a 4x3 linear system whose solution is the camera position.
+bool PositionFromTwoRays(const Eigen::Vector2d& rotated_feature1,
+                         const Eigen::Vector3d& point1,
+                         const Eigen::Vector2d& rotated_feature2,
+                         const Eigen::Vector3d& point2,
+                         Eigen::Vector3d* position) {
+  CHECK_NOTNULL(position);
+  // Create the left hand side of the linear system above.
+  Eigen::Matrix<double, 4, 3> lhs;
+  lhs.block<2, 2>(0, 0).setIdentity();
+  lhs.block<2, 2>(2, 0).setIdentity();
+  lhs.block<2, 1>(0, 2) = -rotated_feature1;
+  lhs.block<2, 1>(2, 2) = -rotated_feature2;
+
+  // Create the right hand side of the linear system above.
+  Eigen::Vector4d rhs;
+  rhs.head<2>() = point1.head<2>() - rotated_feature1 * point1.z();
+  rhs.tail<2>() = point2.head<2>() - rotated_feature2 * point2.z();
+
+  Eigen::ColPivHouseholderQR<Eigen::Matrix<double, 4, 3> > linear_solver(lhs);
+  // If the linear solver is not well-conditioned then the position cannot be
+  // reliably computed.
+  if (linear_solver.rank() != 3) {
+    return false;
   }
-  return nullptr;
+
+  *position = linear_solver.solve(rhs);
+  return true;
 }
 
 }  // namespace theia

@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Regents of the University of California (Regents).
+// Copyright (C) 2013 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,33 +32,29 @@
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
-#include "theia/sfm/reconstruction_estimator.h"
+#ifndef THEIA_SFM_POSE_POSITION_FROM_TWO_RAYS_H_
+#define THEIA_SFM_POSE_POSITION_FROM_TWO_RAYS_H_
 
-#include <glog/logging.h>
-
-#include "theia/sfm/incremental_reconstruction_estimator.h"
-#include "theia/sfm/global_reconstruction_estimator.h"
-#include "theia/sfm/hybrid_reconstruction_estimator.h"
-#include "theia/sfm/reconstruction_estimator_options.h"
+#include <Eigen/Core>
+#include <vector>
 
 namespace theia {
 
-ReconstructionEstimator* ReconstructionEstimator::Create(
-    const ReconstructionEstimatorOptions& options) {
-  switch (options.reconstruction_estimator_type) {
-    case ReconstructionEstimatorType::GLOBAL:
-      return new GlobalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::INCREMENTAL:
-      return new IncrementalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::HYBRID:
-      return new HybridReconstructionEstimator(options);
-      break;
-    default:
-      LOG(FATAL) << "Invalid reconstruction estimator specified.";
-  }
-  return nullptr;
-}
+// Computes the camera position given two oriented features seen by the camera
+// and their corresponding 3d points. The features should have the effect of
+// intrinsics removed and be oriented in the same coordinate system as the 3d
+// points. The rays are constrained by:
+//
+//   depth * rotated_feature = X - c
+//
+// Such that rotated_feature = R^t * [u v 1]^t, with R being the known
+// world-to-camera rotation.
+bool PositionFromTwoRays(const Eigen::Vector2d& rotated_feature1,
+                         const Eigen::Vector3d& point1,
+                         const Eigen::Vector2d& rotated_feature2,
+                         const Eigen::Vector3d& point2,
+                         Eigen::Vector3d* position);
 
 }  // namespace theia
+
+#endif  // THEIA_SFM_POSE_POSITION_FROM_TWO_RAYS_H_

@@ -96,11 +96,13 @@ set(THEIA_SRC
   math/rotation.cc
   math/qp_solver.cc
   sfm/bundle_adjustment/bundle_adjust_two_views.cc
+  sfm/bundle_adjustment/bundle_adjuster.cc
   sfm/bundle_adjustment/bundle_adjustment.cc
   sfm/bundle_adjustment/create_loss_function.cc
   sfm/bundle_adjustment/optimize_relative_position_with_known_rotation.cc
   sfm/camera/camera.cc
   sfm/camera/camera_intrinsics_model.cc
+  sfm/camera/division_undistortion_camera_model.cc
   sfm/camera/fisheye_camera_model.cc
   sfm/camera/fov_camera_model.cc
   sfm/camera/pinhole_camera_model.cc
@@ -109,12 +111,14 @@ set(THEIA_SRC
   sfm/colorize_reconstruction.cc
   sfm/estimate_track.cc
   sfm/estimate_twoview_info.cc
+  sfm/estimators/estimate_absolute_pose_with_known_orientation.cc
   sfm/estimators/estimate_calibrated_absolute_pose.cc
   sfm/estimators/estimate_dominant_plane_from_points.cc
   sfm/estimators/estimate_essential_matrix.cc
   sfm/estimators/estimate_fundamental_matrix.cc
   sfm/estimators/estimate_homography.cc
   sfm/estimators/estimate_relative_pose.cc
+  sfm/estimators/estimate_relative_pose_with_known_orientation.cc
   sfm/estimators/estimate_similarity_transformation_2d_3d.cc
   sfm/estimators/estimate_triangulation.cc
   sfm/estimators/estimate_uncalibrated_absolute_pose.cc
@@ -140,6 +144,7 @@ set(THEIA_SRC
   sfm/global_pose_estimation/robust_rotation_estimator.cc
   sfm/global_reconstruction_estimator.cc
   sfm/gps_converter.cc
+  sfm/hybrid_reconstruction_estimator.cc
   sfm/incremental_reconstruction_estimator.cc
   sfm/localize_view_to_reconstruction.cc
   sfm/pose/dls_impl.cc
@@ -154,6 +159,8 @@ set(THEIA_SRC
   sfm/pose/four_point_relative_pose_partial_rotation.cc
   sfm/pose/fundamental_matrix_util.cc
   sfm/pose/perspective_three_point.cc
+  sfm/pose/position_from_two_rays.cc
+  sfm/pose/relative_pose_from_two_points_with_known_rotation.cc
   sfm/pose/seven_point_fundamental_matrix.cc
   sfm/pose/sim_transform_partial_rotation.cc
   sfm/pose/test_util.cc
@@ -263,17 +270,20 @@ if (BUILD_TESTING)
   gtest(math/rotation)
   gtest(sfm/bundle_adjustment/optimize_relative_position_with_known_rotation)
   gtest(sfm/camera/camera)
+  gtest(sfm/camera/division_undistortion_camera_model)
   gtest(sfm/camera/fisheye_camera_model)
   gtest(sfm/camera/fov_camera_model)
   gtest(sfm/camera/pinhole_camera_model)
   gtest(sfm/camera/pinhole_radial_tangential_camera_model)
   gtest(sfm/camera/projection_matrix_utils)
+  gtest(sfm/estimators/estimate_absolute_pose_with_known_orientation)
   gtest(sfm/estimators/estimate_calibrated_absolute_pose)
   gtest(sfm/estimators/estimate_dominant_plane_from_points)
   gtest(sfm/estimators/estimate_essential_matrix)
   gtest(sfm/estimators/estimate_fundamental_matrix)
   gtest(sfm/estimators/estimate_homography)
   gtest(sfm/estimators/estimate_relative_pose)
+  gtest(sfm/estimators/estimate_relative_pose_with_known_orientation)
   gtest(sfm/estimators/estimate_similarity_transformation_2d_3d)
   gtest(sfm/estimators/estimate_triangulation)
   gtest(sfm/estimators/estimate_uncalibrated_absolute_pose)
@@ -295,6 +305,7 @@ if (BUILD_TESTING)
   gtest(sfm/global_pose_estimation/pairwise_translation_error)
   gtest(sfm/global_pose_estimation/robust_rotation_estimator)
   gtest(sfm/gps_converter)
+  gtest(sfm/hybrid_reconstruction_estimator)
   gtest(sfm/incremental_reconstruction_estimator)
   gtest(sfm/pose/dls_pnp)
   gtest(sfm/pose/eight_point_fundamental_matrix)
@@ -306,6 +317,8 @@ if (BUILD_TESTING)
   gtest(sfm/pose/four_point_relative_pose_partial_rotation)
   gtest(sfm/pose/fundamental_matrix_util)
   gtest(sfm/pose/perspective_three_point)
+  gtest(sfm/pose/position_from_two_rays)
+  gtest(sfm/pose/relative_pose_from_two_points_with_known_rotation)
   gtest(sfm/pose/seven_point_fundamental_matrix)
   gtest(sfm/pose/sim_transform_partial_rotation)
   gtest(sfm/pose/three_point_relative_pose_partial_rotation)

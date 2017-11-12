@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Regents of the University of California (Regents).
+// Copyright (C) 2015 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,33 +32,32 @@
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
-#include "theia/sfm/reconstruction_estimator.h"
+#ifndef THEIA_SFM_ESTIMATORS_ESTIMATE_RELATIVE_POSE_WITH_KNOWN_ORIENTATION_H_
+#define THEIA_SFM_ESTIMATORS_ESTIMATE_RELATIVE_POSE_WITH_KNOWN_ORIENTATION_H_
 
-#include <glog/logging.h>
+#include <Eigen/Core>
+#include <vector>
 
-#include "theia/sfm/incremental_reconstruction_estimator.h"
-#include "theia/sfm/global_reconstruction_estimator.h"
-#include "theia/sfm/hybrid_reconstruction_estimator.h"
-#include "theia/sfm/reconstruction_estimator_options.h"
+#include "theia/sfm/create_and_initialize_ransac_variant.h"
 
 namespace theia {
 
-ReconstructionEstimator* ReconstructionEstimator::Create(
-    const ReconstructionEstimatorOptions& options) {
-  switch (options.reconstruction_estimator_type) {
-    case ReconstructionEstimatorType::GLOBAL:
-      return new GlobalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::INCREMENTAL:
-      return new IncrementalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::HYBRID:
-      return new HybridReconstructionEstimator(options);
-      break;
-    default:
-      LOG(FATAL) << "Invalid reconstruction estimator specified.";
-  }
-  return nullptr;
-}
+struct FeatureCorrespondence2D3D;
+struct RansacParameters;
+struct RansacSummary;
+
+// Estimates the relative pose with known orientation. It is assumed that the 2D
+// features are normalized by the camera intrinsics and rotated to be in the
+// same world coordinate system. Returns true if the position could be
+// successfully estimated and false otherwise. The quality of the result depends
+// on the quality of the input data.
+bool EstimateRelativePoseWithKnownOrientation(
+    const RansacParameters& ransac_params,
+    const RansacType& ransac_type,
+    const std::vector<FeatureCorrespondence>& rotated_correspondences,
+    Eigen::Vector3d* relative_camera2_position,
+    RansacSummary* ransac_summary);
 
 }  // namespace theia
+
+#endif  // THEIA_SFM_ESTIMATORS_ESTIMATE_RELATIVE_POSE_WITH_KNOWN_ORIENTATION_H_

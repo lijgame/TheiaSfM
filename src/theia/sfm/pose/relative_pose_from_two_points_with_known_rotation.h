@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Regents of the University of California (Regents).
+// Copyright (C) 2017 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -30,35 +30,39 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 // Please contact the author of this library if you have any questions.
-// Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
+// Author: Chris Sweeney (sweeney.chris.m@gmail.com)
 
-#include "theia/sfm/reconstruction_estimator.h"
+#ifndef THEIA_SFM_POSE_RELATIVE_POSE_FROM_TWO_POINTS_WITH_KNOWN_ROTATION_H_
+#define THEIA_SFM_POSE_RELATIVE_POSE_FROM_TWO_POINTS_WITH_KNOWN_ROTATION_H_
 
-#include <glog/logging.h>
-
-#include "theia/sfm/incremental_reconstruction_estimator.h"
-#include "theia/sfm/global_reconstruction_estimator.h"
-#include "theia/sfm/hybrid_reconstruction_estimator.h"
-#include "theia/sfm/reconstruction_estimator_options.h"
+#include <Eigen/Core>
+#include <vector>
 
 namespace theia {
 
-ReconstructionEstimator* ReconstructionEstimator::Create(
-    const ReconstructionEstimatorOptions& options) {
-  switch (options.reconstruction_estimator_type) {
-    case ReconstructionEstimatorType::GLOBAL:
-      return new GlobalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::INCREMENTAL:
-      return new IncrementalReconstructionEstimator(options);
-      break;
-    case ReconstructionEstimatorType::HYBRID:
-      return new HybridReconstructionEstimator(options);
-      break;
-    default:
-      LOG(FATAL) << "Invalid reconstruction estimator specified.";
-  }
-  return nullptr;
-}
+// Computes the relative position of two cameras when the relative position is
+// known. This assumes that the features have been rotated into 3d space and
+// homogenized. For a pixel observation [u v], the rotated feature is:
+//
+//   rf = hnormalize(R^t * K^{-1} * [u v 1]^t)
+//
+// where hnormalize is the homogeneous normalization that divides by the 3rd
+// coordinate to achieve a 2d coordinate. The features in rotated_features1
+// correspond to features in the first camera, and rotated_features2 corresponds
+// to the second camera.
+//
+// The relative position of the second camera is returned. In other words, an
+// estimate of the unit-norm direction: (c2 - c1) / ||c2 - c1|| is
+// provided. This means that the relative position will be in the coordinate
+// system defined by the rotated features.
+//
+// Returns true on success and false if the relative position could not be
+// estimated.
+bool RelativePoseFromTwoPointsWithKnownRotation(
+    const Eigen::Vector2d rotated_features1[2],
+    const Eigen::Vector2d rotated_features2[2],
+    Eigen::Vector3d* relative_position2);
 
 }  // namespace theia
+
+#endif  // THEIA_SFM_POSE_RELATIVE_POSE_FROM_TWO_POINTS_WITH_KNOWN_ROTATION_H_
