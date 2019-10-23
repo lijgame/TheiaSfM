@@ -66,6 +66,9 @@ bool DirectoryExists(const std::string& directory);
 // Creates the given directory.
 bool CreateNewDirectory(const std::string& directory);
 
+bool CopyFile(const std::string& filepath_to_copy_from,
+              const std::string& filepath_to_copy_to);
+
 }  // namespace theia
 
 #endif  // THEIA_UTIL_FILESYSTEM_H_

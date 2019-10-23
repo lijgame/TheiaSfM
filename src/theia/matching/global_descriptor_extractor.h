@@ -1,4 +1,4 @@
-// Copyright (C) 2015 The Regents of the University of California (Regents).
+// Copyright (C) 2018 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -30,29 +30,40 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 // Please contact the author of this library if you have any questions.
-// Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
+// Author: Chris Sweeney (sweeney.chris.m@gmail.com)
 
-#ifndef THEIA_IO_READ_MATCHES_H_
-#define THEIA_IO_READ_MATCHES_H_
+#ifndef THEIA_MATCHING_GLOBAL_DESCRIPTOR_EXTRACTOR_H_
+#define THEIA_MATCHING_GLOBAL_DESCRIPTOR_EXTRACTOR_H_
 
-#include <string>
+#include <Eigen/Core>
 #include <vector>
 
-
 namespace theia {
-struct CameraIntrinsicsPrior;
-struct ImagePairMatch;
 
-// Reads the feature matches between view pairs as well as the two view geometry
-// (i.e., TwoViewInfo) that describes the relative pose between the two
-// views. The names of all views are returned and the image indices in the
-// matches objects corresponds to the index of view_names.
-bool ReadMatchesAndGeometry(
-    const std::string& matches_file,
-    std::vector<std::string>* view_names,
-    std::vector<CameraIntrinsicsPrior>* camera_intrinsics_prior,
-    std::vector<ImagePairMatch>* matches);
+// Global descriptors provide a summary of an entire image into a single feature
+// descriptor. These descriptors may be formed using training data (e.g., SIFT
+// features) or may be directly computed from the image itself. Global
+// descriptors provide an efficient mechanism for determining the image
+// similarity between two images.
+class GlobalDescriptorExtractor {
+ public:
+  virtual ~GlobalDescriptorExtractor() {}
+
+  // Add features to the descriptor extractor for training. This method may be
+  // called multiple times to add multiple sets of features (e.g., once per
+  // image) to the global descriptor extractor for training.
+  virtual void AddFeaturesForTraining(
+      const std::vector<Eigen::VectorXf>& features) = 0;
+
+  // Train the global descriptor extracto with the given set of feature
+  // descriptors added with AddFeaturesForTraining. It is assumed that all
+  // descriptors have the same length.
+  virtual bool Train() = 0;
+
+  // Compute a global image descriptor for the set of input features.
+  virtual Eigen::VectorXf ExtractGlobalDescriptor(
+      const std::vector<Eigen::VectorXf>& features) = 0;
+};
 
 }  // namespace theia
-
-#endif  // THEIA_IO_READ_MATCHES_H_
+#endif  // THEIA_MATCHING_GLOBAL_DESCRIPTOR_EXTRACTOR_H_

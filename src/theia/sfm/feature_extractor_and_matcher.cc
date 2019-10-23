@@ -49,6 +49,9 @@
 #include "theia/matching/create_feature_matcher.h"
 #include "theia/matching/feature_correspondence.h"
 #include "theia/matching/feature_matcher_options.h"
+#include "theia/matching/features_and_matches_database.h"
+#include "theia/matching/fisher_vector_extractor.h"
+#include "theia/matching/global_descriptor_extractor.h"
 #include "theia/matching/image_pair_match.h"
 #include "theia/sfm/camera_intrinsics_prior.h"
 #include "theia/sfm/estimate_twoview_info.h"
@@ -60,6 +63,11 @@
 
 namespace theia {
 namespace {
+
+struct MatchedImages {
+  std::unordered_set<int> ranked_matches;
+  std::unordered_set<int> expanded_matches;
+};
 
 void ExtractFeatures(const FeatureExtractorAndMatcher::Options& options,
                      const std::string& image_filepath,
@@ -128,8 +136,10 @@ void ExtractFeatures(const FeatureExtractorAndMatcher::Options& options,
 }  // namespace
 
 FeatureExtractorAndMatcher::FeatureExtractorAndMatcher(
-    const FeatureExtractorAndMatcher::Options& options)
-    : options_(options) {
+    const FeatureExtractorAndMatcher::Options& options,
+    FeaturesAndMatchesDatabase* features_and_matches_database)
+    : options_(options),
+      features_and_matches_database_(features_and_matches_database) {
   // Create the feature matcher.
   FeatureMatcherOptions matcher_options = options_.feature_matcher_options;
   matcher_options.num_threads = options_.num_threads;
@@ -138,8 +148,22 @@ FeatureExtractorAndMatcher::FeatureExtractorAndMatcher(
   matcher_options.geometric_verification_options.min_num_inlier_matches =
       options_.min_num_inlier_matches;
 
-  matcher_ = CreateFeatureMatcher(options_.matching_strategy, matcher_options);
+  matcher_ = CreateFeatureMatcher(options_.matching_strategy,
+                                  matcher_options,
+                                  features_and_matches_database_);
+
+  // Initialize the global image descriptor extractor if desired.
+  if (options_.select_image_pairs_with_global_image_descriptor_matching) {
+    FisherVectorExtractor::Options fv_options;
+    fv_options.num_gmm_clusters = options_.num_gmm_clusters_for_fisher_vector;
+    fv_options.max_num_features_for_training =
+        options_.max_num_features_for_fisher_vector_training;
+    global_image_descriptor_extractor_.reset(
+        new FisherVectorExtractor(fv_options));
+  }
 }
+
+FeatureExtractorAndMatcher::~FeatureExtractorAndMatcher() {}
 
 bool FeatureExtractorAndMatcher::AddImage(const std::string& image_filepath) {
   image_filepaths_.emplace_back(image_filepath);
@@ -152,7 +176,12 @@ bool FeatureExtractorAndMatcher::AddImage(
   if (!AddImage(image_filepath)) {
     return false;
   }
-  intrinsics_[image_filepath] = intrinsics;
+
+  // Add the intrinsics prior to the database.
+  std::string image_filename;
+  CHECK(GetFilenameFromFilepath(image_filepath, true, &image_filename));
+  features_and_matches_database_->PutCameraIntrinsicsPrior(image_filename,
+                                                           intrinsics);
   return true;
 }
 
@@ -163,10 +192,11 @@ bool FeatureExtractorAndMatcher::AddMaskForFeaturesExtraction(
           << "Associated mask: " << mask_filepath;
   return true;
 }
+
 void FeatureExtractorAndMatcher::SetPairsToMatch(
-    const std::vector<std::pair<std::string, std::string> >& pairs_to_match) {
+    const std::vector<std::pair<std::string, std::string>>& pairs_to_match) {
   // Convert the image filepaths to image filenames.
-  std::vector<std::pair<std::string, std::string> > image_pairs;
+  std::vector<std::pair<std::string, std::string>> image_pairs;
   image_pairs.reserve(pairs_to_match.size());
   for (const auto& pair_to_match : pairs_to_match) {
     std::string image1_filename;
@@ -183,13 +213,8 @@ void FeatureExtractorAndMatcher::SetPairsToMatch(
 // Performs feature matching between all images provided by the image
 // filepaths. Features are extracted and matched between the images according to
 // the options passed in. Only matches that have passed geometric verification
-// are kept. EXIF data is parsed to determine the camera intrinsics if
-// available.
-void FeatureExtractorAndMatcher::ExtractAndMatchFeatures(
-    std::vector<CameraIntrinsicsPrior>* intrinsics,
-    std::vector<ImagePairMatch>* matches) {
-  CHECK_NOTNULL(intrinsics)->resize(image_filepaths_.size());
-  CHECK_NOTNULL(matches);
+// are kept.
+void FeatureExtractorAndMatcher::ExtractAndMatchFeatures() {
   CHECK_NOTNULL(matcher_.get());
 
   // For each image, process the features and add it to the matcher.
@@ -208,23 +233,28 @@ void FeatureExtractorAndMatcher::ExtractAndMatchFeatures(
   thread_pool.reset(nullptr);
 
   // After all threads complete feature extraction, perform matching.
-
-  // Perform the matching.
+  SelectImagePairsWithGlobalDescriptorMatching();
+  // Free up memory.
+  global_image_descriptor_extractor_.release();
+  
   LOG(INFO) << "Matching images...";
-  matcher_->MatchImages(matches);
-
-  // Add the intrinsics to the output.
-  for (int i = 0; i < image_filepaths_.size(); i++) {
-    (*intrinsics)[i] = FindOrDie(intrinsics_, image_filepaths_[i]);
-  }
+  matcher_->MatchImages();
 }
 
 void FeatureExtractorAndMatcher::ProcessImage(const int i) {
   const std::string& image_filepath = image_filepaths_[i];
 
+  // Get the image filename without the directory.
+  std::string image_filename;
+  CHECK(GetFilenameFromFilepath(image_filepath, true, &image_filename));
+
   // Get the camera intrinsics prior if it was provided.
-  CameraIntrinsicsPrior intrinsics =
-      FindWithDefault(intrinsics_, image_filepath, CameraIntrinsicsPrior());
+  CameraIntrinsicsPrior intrinsics;
+  if (features_and_matches_database_->ContainsCameraIntrinsicsPrior(
+          image_filename)) {
+    intrinsics = features_and_matches_database_->GetCameraIntrinsicsPrior(
+        image_filename);
+  }
 
   // Get the associated mask if it was provided.
   const std::string mask_filepath =
@@ -243,10 +273,6 @@ void FeatureExtractorAndMatcher::ProcessImage(const int i) {
           1.2 * static_cast<double>(
                     std::max(intrinsics.image_width, intrinsics.image_height));
     }
-
-    std::lock_guard<std::mutex> lock(intrinsics_mutex_);
-    // Insert or update the value of the intrinsics.
-    intrinsics_[image_filepath] = intrinsics;
   }
 
   // Early exit if no EXIF calibration exists and we are only processing
@@ -259,39 +285,158 @@ void FeatureExtractorAndMatcher::ProcessImage(const int i) {
     LOG(INFO) << "Image " << image_filepath
               << " is initialized with the focal length: "
               << intrinsics.focal_length.value[0];
+    // Insert or update the value of the intrinsics.
+    features_and_matches_database_->PutCameraIntrinsicsPrior(image_filename,
+                                                             intrinsics);
   }
+
+  // Extract the features if necessary.
+  if (features_and_matches_database_->ContainsFeatures(image_filename)) {
+    VLOG(1) << "Loading features for " << image_filename
+            << " from the features and matches database.";
+  } else {
+    // Extract Features.
+    KeypointsAndDescriptors features;
+    features.image_name = image_filename;
+    ExtractFeatures(options_,
+                    image_filepath,
+                    mask_filepath,
+                    &features.keypoints,
+                    &features.descriptors);
+
+    // Skip the image if not descriptors were extracted.
+    if (features.descriptors.size() == 0) {
+      return;
+    }
+
+    // Add the features to the DB.
+    features_and_matches_database_->PutFeatures(image_filename, features);
+  }
+
+  // Add the descriptors to the global image descriptor extractor for training
+  // if using a global image descriptor extractor.
+  if (options_.select_image_pairs_with_global_image_descriptor_matching) {
+    const KeypointsAndDescriptors& features =
+        features_and_matches_database_->GetFeatures(image_filename);
+    CHECK_GT(features.descriptors.size(), 0);
+    global_image_descriptor_extractor_->AddFeaturesForTraining(
+        features.descriptors);
+  }
+
+  // Add the image to the matcher.
+  std::lock_guard<std::mutex> lock(matcher_mutex_);
+  matcher_->AddImage(image_filename);
+  return;
+}
+
+void FeatureExtractorAndMatcher::ExtractGlobalDesriptors(
+    const std::vector<std::string>& image_names,
+    std::vector<Eigen::VectorXf>* global_descriptors) {
+  // Extract the global descriptors in parallel.
+  ThreadPool pool(options_.num_threads);
+  global_descriptors->resize(image_names.size());
+  for (int i = 0; i < image_names.size(); i++) {
+    pool.Add(
+        [&](const int i) {
+          const KeypointsAndDescriptors& features =
+              features_and_matches_database_->GetFeatures(image_names[i]);
+          // Extract the global descriptors
+          (*global_descriptors)[i] =
+              global_image_descriptor_extractor_->ExtractGlobalDescriptor(
+                  features.descriptors);
+        },
+        i);
+  }
+}
+
+void FeatureExtractorAndMatcher::
+    SelectImagePairsWithGlobalDescriptorMatching() {
+  // Train the global descriptor extractor based on the input features.
+  VLOG(2) << "Training global image descriptor...";
+  CHECK(global_image_descriptor_extractor_->Train());
 
   // Get the image filename without the directory.
-  std::string image_filename;
-  CHECK(GetFilenameFromFilepath(image_filepath, true, &image_filename));
+  const std::vector<std::string> image_names =
+      features_and_matches_database_->ImageNamesOfFeatures();
 
-  // Get the feature filepath based on the image filename.
-  std::string output_dir =
-      options_.feature_matcher_options.keypoints_and_descriptors_output_dir;
-  AppendTrailingSlashIfNeeded(&output_dir);
-  const std::string feature_filepath =
-      output_dir + image_filename + ".features";
+  // Extract global image descriptors.
+  std::vector<Eigen::VectorXf> global_descriptors;
+  ExtractGlobalDesriptors(image_names, &global_descriptors);
 
-  // If the feature file already exists, skip the feature extraction.
-  if (options_.feature_matcher_options.match_out_of_core &&
-      FileExists(feature_filepath)) {
-    std::lock_guard<std::mutex> lock(matcher_mutex_);
-    matcher_->AddImage(image_filename, intrinsics);
-    return;
+  VLOG(2) << "Computing image-to-image similarity scores with global "
+             "descriptors...";
+
+  // For each image, find the kNN and add those to our selection for matching.
+  const int num_nearest_neighbors =
+      std::min(static_cast<int>(image_names.size() - 1),
+               options_.num_nearest_neighbors_for_global_descriptor_matching);
+
+  std::unordered_map<int, MatchedImages> pairs_to_match;
+
+  // Match all pairs of global descriptors. For each image, the K most similar
+  // image (i.e. the ones with the lowest distance between global descriptors)
+  // are set for matching.
+  std::vector<std::vector<std::pair<float, int>>> global_matching_scores(
+      global_descriptors.size());
+  for (int i = 0; i < global_descriptors.size(); i++) {
+    // Compute the matching scores between all (i, j) pairs.
+    for (int j = i + 1; j < global_descriptors.size(); j++) {
+      const float global_feature_match_score =
+          (global_descriptors[i] - global_descriptors[j]).squaredNorm();
+      // Add the global feature matching score to both images.
+      global_matching_scores[i].emplace_back(global_feature_match_score, j);
+      global_matching_scores[j].emplace_back(global_feature_match_score, i);
+    }
+
+    // Find the top K matching results for image i.
+    std::partial_sort(global_matching_scores[i].begin(),
+                      global_matching_scores[i].begin() + num_nearest_neighbors,
+                      global_matching_scores[i].end());
+
+    // Add each of the kNN to the output indices.
+    for (int j = 0; j < num_nearest_neighbors; j++) {
+      const int second_id = global_matching_scores[i][j].second;
+
+      // Perform query expansion by adding image i as a candidate match to all of its matches neighbors.
+      const auto& neighbors_of_second_id = pairs_to_match[second_id].ranked_matches;
+      for (const int neighbor_of_second_id : neighbors_of_second_id) {
+	pairs_to_match[neighbor_of_second_id].expanded_matches.insert(i);
+      }
+
+      // Add the match to both images so that edges are properly utilized for query expansion.
+      pairs_to_match[i].ranked_matches.insert(second_id);
+      pairs_to_match[second_id].ranked_matches.insert(i);
+
+    }
+
+    // Remove the matching scores for image i to free up memory.
+    global_matching_scores[i].clear();
   }
 
-  // Extract Features.
-  std::vector<Keypoint> keypoints;
-  std::vector<Eigen::VectorXf> descriptors;
-  ExtractFeatures(
-      options_, image_filepath, mask_filepath, &keypoints, &descriptors);
 
-  // Add the relevant image and feature data to the feature matcher. This allows
-  // the feature matcher to control fine-grained things like multi-threading and
-  // caching. For instance, the matcher may choose to write the descriptors to
-  // disk and read them back as needed.
-  std::lock_guard<std::mutex> lock(matcher_mutex_);
-  matcher_->AddImage(image_filename, keypoints, descriptors, intrinsics);
+  // Collect all matches into one container.
+  std::vector<std::pair<std::string, std::string>> image_names_to_match;
+  image_names_to_match.reserve(num_nearest_neighbors * global_descriptors.size());
+  for (const auto& matches : pairs_to_match) {
+    for (const int match : matches.second.ranked_matches) {
+      if (matches.first < match) {
+	image_names_to_match.emplace_back(image_names[matches.first], image_names[match]);
+      }
+    }
+
+    for (const int match : matches.second.expanded_matches) {
+      if (matches.first < match) {
+	image_names_to_match.emplace_back(image_names[matches.first], image_names[match]);
+      }
+    }
+  }
+
+  // Uniquify the matches.
+  std::sort(image_names_to_match.begin(), image_names_to_match.end());
+  image_names_to_match.erase(std::unique(image_names_to_match.begin(), image_names_to_match.end()), image_names_to_match.end());
+  
+  // Tell the matcher which pairs to match.
+  matcher_->SetImagePairsToMatch(image_names_to_match);
 }
 
 }  // namespace theia

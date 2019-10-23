@@ -30,46 +30,28 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 // Please contact the author of this library if you have any questions.
-// Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
+// Author: Aleksander Holynski (holynski@cs.washington.edu)
 
-#include "theia/io/write_matches.h"
+#ifndef THEIA_IO_WRITE_COLMAP_FILES_H_
+#define THEIA_IO_WRITE_COLMAP_FILES_H_
 
-#include <cereal/archives/portable_binary.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/vector.hpp>
-#include <glog/logging.h>
-#include <cstdlib>
-#include <fstream>   // NOLINT
-#include <iostream>  // NOLINT
 #include <string>
-
-#include "theia/matching/image_pair_match.h"
-#include "theia/sfm/camera_intrinsics_prior.h"
 
 namespace theia {
 
-bool WriteMatchesAndGeometry(
-    const std::string& matches_file,
-    const std::vector<std::string>& view_names,
-    const std::vector<CameraIntrinsicsPrior>& camera_intrinsics_prior,
-    const std::vector<ImagePairMatch>& matches) {
-  CHECK_EQ(view_names.size(), camera_intrinsics_prior.size());
+class Reconstruction;
 
-  // Return false if the file cannot be opened for writing.
-  std::ofstream matches_writer(matches_file, std::ios::out | std::ios::binary);
-  if (!matches_writer.is_open()) {
-    LOG(ERROR) << "Could not open the matches file: " << matches_file
-               << " for writing.";
-    return false;
-  }
-
-  // Make sure that Cereal is able to finish executing before returning.
-  {
-    cereal::PortableBinaryOutputArchive output_archive(matches_writer);
-    output_archive(view_names, camera_intrinsics_prior, matches);
-  }
-
-  return true;
-}
+// Writes all information from a Reconstruction into the COLMAP text format.
+//
+// Input params are as follows:
+//   reconstruction: A Theia Reconstruction containing the camera, track, and
+//       point cloud information. See theia/sfm/reconstruction.h for more
+//       information.
+//   output_directory: The directory to which the COLMAP text files will be
+//   written. This includes three files: cameras.txt, images.txt, points3D.txt
+bool WriteColmapFiles(const Reconstruction& reconstruction,
+                      const std::string& output_directory);
 
 }  // namespace theia
+
+#endif  // THEIA_IO_WRITE_COLMAP_FILES_H_

@@ -35,6 +35,8 @@
 #ifndef THEIA_SFM_FEATURE_EXTRACTOR_AND_MATCHER_H_
 #define THEIA_SFM_FEATURE_EXTRACTOR_AND_MATCHER_H_
 
+#include <Eigen/Core>
+#include <mutex>  // NOLINT
 #include <string>
 #include <thread>  // NOLINT
 #include <vector>
@@ -46,6 +48,7 @@
 #include "theia/sfm/exif_reader.h"
 
 namespace theia {
+class GlobalDescriptorExtractor;
 struct CameraIntrinsicsPrior;
 struct ImagePairMatch;
 
@@ -80,9 +83,23 @@ class FeatureExtractorAndMatcher {
 
     // Matching options for determining which feature matches are good matches.
     FeatureMatcherOptions feature_matcher_options;
+
+    // If true, a global image descriptor for each image is used to determine
+    // the k-nearest neighbor images, and feature matchign is only performed on
+    // these k-nearest neighbors. The desired value of "k" is given by setting
+    //   num_nearest_neighbors_for_global_descriptor_matching.
+    bool select_image_pairs_with_global_image_descriptor_matching = true;
+    int num_nearest_neighbors_for_global_descriptor_matching = 100;
+
+    // Specific options for Fisher Vector global feature extraction.
+    int num_gmm_clusters_for_fisher_vector = 16;
+    int max_num_features_for_fisher_vector_training = 1000000;
   };
 
-  explicit FeatureExtractorAndMatcher(const Options& options);
+  explicit FeatureExtractorAndMatcher(
+      const Options& options,
+      FeaturesAndMatchesDatabase* features_and_matches_database);
+  ~FeatureExtractorAndMatcher();
 
   // Add an image to the image matcher queue.
   bool AddImage(const std::string& image_filepath);
@@ -106,22 +123,28 @@ class FeatureExtractorAndMatcher {
   // Performs feature matching between all images provided by the image
   // filepaths. Features are extracted and matched between the images according
   // to the options passed in. Only matches that have passed geometric
-  // verification are kept. EXIF data is parsed to determine the camera
-  // intrinsics if available.
-  void ExtractAndMatchFeatures(std::vector<CameraIntrinsicsPrior>* intrinsics,
-                               std::vector<ImagePairMatch>* matches);
+  // verification are kept.
+  void ExtractAndMatchFeatures();
 
  protected:
   // Processes a single image by extracting EXIF information, extracting
   // features and descriptors, and adding the image to the matcher.
   void ProcessImage(const int i);
 
+  // If global descriptor matching is used, select the best set of image pairs
+  // to perform feature matching on. This dramatically speeds up the matching
+  // pipeline over N^2 matching.
+  void SelectImagePairsWithGlobalDescriptorMatching();
+  void ExtractGlobalDesriptors(
+      const std::vector<std::string>& image_names,
+      std::vector<Eigen::VectorXf>* global_descriptors);
+
   const Options options_;
+  FeaturesAndMatchesDatabase* features_and_matches_database_;
 
   // Local copies of the images to be matches, masks for use and any priors on
   // the camera intrinsics.
   std::vector<std::string> image_filepaths_;
-  std::unordered_map<std::string, CameraIntrinsicsPrior> intrinsics_;
   std::unordered_map<std::string, std::string> image_masks_;
 
   // Exif reader for loading exif information. This object is created once so
@@ -129,9 +152,14 @@ class FeatureExtractorAndMatcher {
   // times.
   ExifReader exif_reader_;
 
+  // The global image feature descriptor extractor. This is used to extract a
+  // compact representation for each image and select a subset of kNN images to
+  // perform explicit (and expensive) feature matching.
+  std::unique_ptr<GlobalDescriptorExtractor> global_image_descriptor_extractor_;
+
   // Feature matcher and mutex for thread-safe access.
   std::unique_ptr<FeatureMatcher> matcher_;
-  std::mutex intrinsics_mutex_, matcher_mutex_;
+  std::mutex matcher_mutex_;
 };
 
 }  // namespace theia

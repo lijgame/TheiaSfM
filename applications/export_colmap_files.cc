@@ -1,4 +1,4 @@
-// Copyright (C) 2015 The Regents of the University of California (Regents).
+// Copyright (C) 2014 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -30,49 +30,32 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 // Please contact the author of this library if you have any questions.
-// Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
+// Author: Aleksander Holynski (holynski@cs.washington.edu)
 
-#include "theia/io/read_matches.h"
-
-#include <cereal/archives/portable_binary.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/vector.hpp>
-
+#include <Eigen/Core>
+#include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <cstdlib>
-#include <fstream>   // NOLINT
-#include <iostream>  // NOLINT
+#include <theia/io/write_colmap_files.h>
+#include <theia/theia.h>
+
+#include <algorithm>
 #include <string>
 
-#include "theia/matching/image_pair_match.h"
-#include "theia/sfm/camera_intrinsics_prior.h"
+DEFINE_string(output_folder, "", "Folder to output the colmap files.");
+DEFINE_string(input_reconstruction_file,
+              "",
+              "Input Theia reconstruction (.bin).");
+int main(int argc, char* argv[]) {
+  google::InitGoogleLogging(argv[0]);
+  THEIA_GFLAGS_NAMESPACE::ParseCommandLineFlags(&argc, &argv, true);
 
-namespace theia {
+  // Load the reconstuction.
+  theia::Reconstruction reconstruction;
+  CHECK(theia::ReadReconstruction(FLAGS_input_reconstruction_file,
+                                  &reconstruction))
+      << "Could not read reconstruction.";
 
-bool ReadMatchesAndGeometry(
-    const std::string& matches_file,
-    std::vector<std::string>* view_names,
-    std::vector<CameraIntrinsicsPrior>* camera_intrinsics_prior,
-    std::vector<ImagePairMatch>* matches) {
-  CHECK_NOTNULL(view_names)->clear();
-  CHECK_NOTNULL(camera_intrinsics_prior)->clear();
-  CHECK_NOTNULL(matches)->clear();
-
-  // Return false if the file cannot be opened.
-  std::ifstream matches_reader(matches_file, std::ios::in | std::ios::binary);
-  if (!matches_reader.is_open()) {
-    LOG(ERROR) << "Could not open the matches file: " << matches_file
-               << " for reading.";
-    return false;
-  }
-
-  // Make sure that Cereal is able to finish executing before returning.
-  {
-    cereal::PortableBinaryInputArchive input_archive(matches_reader);
-    input_archive(*view_names, *camera_intrinsics_prior, *matches);
-  }
-
-  return true;
+  CHECK(WriteColmapFiles(reconstruction, FLAGS_output_folder))
+      << "Could not write out reconstruction file.";
+  return 0;
 }
-
-}  // namespace theia

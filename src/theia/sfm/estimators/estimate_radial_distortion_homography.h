@@ -1,4 +1,4 @@
-// Copyright (C) 2015 The Regents of the University of California (Regents).
+// Copyright (C) 2019 The Regents of the University of California (Regents).
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,28 +32,54 @@
 // Please contact the author of this library if you have any questions.
 // Author: Chris Sweeney (cmsweeney@cs.ucsb.edu)
 
-#ifndef THEIA_IO_WRITE_MATCHES_H_
-#define THEIA_IO_WRITE_MATCHES_H_
+// This file was created by Steffen Urban (urbste@googlemail.com) or
+// company address (steffen.urban@zeiss.com)
+// May 2019
 
-#include <string>
+#ifndef THEIA_SFM_ESTIMATORS_ESTIMATE_RADIAL_DISTORTION_HOMOGRAPHY_H_
+#define THEIA_SFM_ESTIMATORS_ESTIMATE_RADIAL_DISTORTION_HOMOGRAPHY_H_
+
+#include <Eigen/Core>
 #include <vector>
 
-namespace theia {
-struct CameraIntrinsicsPrior;
-struct ImagePairMatch;
+#include "theia/sfm/camera/division_undistortion_camera_model.h"
+#include "theia/sfm/create_and_initialize_ransac_variant.h"
+#include "theia/sfm/feature.h"
+#include "theia/sfm/pose/six_point_radial_distortion_homography.h"
 
-// Writes the feature matches between view pairs as well as the two view
-// geometry (i.e., TwoViewInfo) that describes the relative pose between the two
-// views. The names of all views must be provided such that the image indices in
-// the matches objects corresponds to the index of view_names. view_names should
-// only store image names with extension and not the full image path.
-// (e.g. abc.jpg and not /somepath/abc.jpg )
-bool WriteMatchesAndGeometry(
-    const std::string& matches_file,
-    const std::vector<std::string>& view_names,
-    const std::vector<CameraIntrinsicsPrior>& camera_intrinsics_prior,
-    const std::vector<ImagePairMatch>& matches);
+namespace theia {
+
+struct RansacParameters;
+struct RansacSummary;
+
+// imitates std::pair
+// this is basically for radial homography matrix estimation
+struct RadialDistortionFeatureCorrespondence {
+ public:
+  Feature feature_left;
+  Feature feature_right;
+
+  Feature normalized_feature_left;
+  Feature normalized_feature_right;
+
+  double focal_length_estimate_left = 1000.0;
+  double focal_length_estimate_right = 1000.0;
+
+  double min_radial_distortion = -5.0;
+  double max_radial_distortion = 0.0;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+};
+
+// Estimates the homography matrix from feature correspondences
+// using the 6-pt radial distortion homography algorithm.
+// Apart from the homography it also returns a distortion estimation for both
+// cameras
+bool EstimateRadialHomographyMatrix(
+    const RansacParameters& ransac_params, const RansacType& ransac_type,
+    const std::vector<RadialDistortionFeatureCorrespondence>&
+        normalized_correspondences,
+    RadialHomographyResult* result, RansacSummary* ransac_summary);
 
 }  // namespace theia
 
-#endif  // THEIA_IO_WRITE_MATCHES_H__
+#endif

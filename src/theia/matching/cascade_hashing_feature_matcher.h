@@ -36,13 +36,15 @@
 #define THEIA_MATCHING_CASCADE_HASHING_FEATURE_MATCHER_H_
 
 #include <memory>
+#include <mutex>  // NOLINT
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "theia/matching/cascade_hasher.h"
 #include "theia/matching/feature_matcher.h"
-#include "theia/util/hash.h"
+#include "theia/matching/features_and_matches_database.h"
+#include "theia/util/lru_cache.h"
 
 namespace theia {
 class Keypoint;
@@ -55,46 +57,33 @@ struct KeypointsAndDescriptors;
 // efficient but can only be used with float features like SIFT.
 class CascadeHashingFeatureMatcher : public FeatureMatcher {
  public:
-  explicit CascadeHashingFeatureMatcher(const FeatureMatcherOptions& options)
-      : FeatureMatcher(options) {}
-  ~CascadeHashingFeatureMatcher() {}
+  CascadeHashingFeatureMatcher(
+      const FeatureMatcherOptions& options,
+      FeaturesAndMatchesDatabase* features_and_matches_database);
+      ~CascadeHashingFeatureMatcher();
 
   // These methods are the same as the base class except that the HashedImage is
   // created as the descriptors are added.
-  void AddImage(const std::string& image_name,
-                const std::vector<Keypoint>& keypoints,
-                const std::vector<Eigen::VectorXf>& descriptors) override;
-  void AddImage(const std::string& image_name,
-                const std::vector<Keypoint>& keypoints,
-                const std::vector<Eigen::VectorXf>& descriptors,
-                const CameraIntrinsicsPrior& intrinsics) override;
   void AddImage(const std::string& image_name) override;
-  void AddImage(const std::string& image_name,
-                const CameraIntrinsicsPrior& intrinsics) override;
+
   // This method is essentially the same as AddImage() but run in batch and in
   // parallel.
-  void AddImages(const std::vector<std::string>& image_names,
-                 const std::vector<CameraIntrinsicsPrior>& intrinsics) override;
+  void AddImages(const std::vector<std::string>& image_names) override;
 
  private:
-  bool MatchImagePair(
-      const KeypointsAndDescriptors& features1,
-      const KeypointsAndDescriptors& features2,
-      std::vector<IndexedFeatureMatch>* matches) override;
+  bool MatchImagePair(const KeypointsAndDescriptors& features1,
+                      const KeypointsAndDescriptors& features2,
+                      std::vector<IndexedFeatureMatch>* matches) override;
+
+  // Method to fetch hashed images and store them in a cache.
+  std::shared_ptr<HashedImage> FetchHashedImage(const std::string& image_name);
 
   // Initializes the cascade hasher (only if needed).
   void InitializeCascadeHasher(int descriptor_dimension);
 
-  // Creates the hashed images in parallel.
-  void CreateHashedImagesInParallel(
-      const std::vector<std::string>& image_names,
-      const std::vector<std::string>& feature_filenames);
-
-  std::unordered_map<std::string, HashedImage> hashed_images_;
+  using HashedImageCache = LRUCache<std::string, std::shared_ptr<HashedImage>>;
+  std::unique_ptr<HashedImageCache> hashed_images_;
   std::unique_ptr<CascadeHasher> cascade_hasher_;
-
-  // Guard for the hashed images map.
-  std::mutex hashed_images_lock_;
 
   DISALLOW_COPY_AND_ASSIGN(CascadeHashingFeatureMatcher);
 };

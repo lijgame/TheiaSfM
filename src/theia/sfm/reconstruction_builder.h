@@ -48,6 +48,7 @@
 
 namespace theia {
 class FeatureExtractorAndMatcher;
+class FeaturesAndMatchesDatabase;
 class RandomNumberGenerator;
 class Reconstruction;
 class TrackBuilder;
@@ -96,6 +97,11 @@ struct ReconstructionBuilderOptions {
   // extracted.
   FeatureDensity feature_density = FeatureDensity::NORMAL;
 
+  // Keypoints and descriptors are stored to disk as they are added to the
+  // FeatureMatcher. Features will be stored in this directory, which must be a
+  // valid writeable directory.
+  std::string features_and_matches_database_directory = "";
+
   // Matching strategy type.
   // See //theia/matching/create_feature_matcher.h
   MatchingStrategy matching_strategy = MatchingStrategy::BRUTE_FORCE;
@@ -105,22 +111,36 @@ struct ReconstructionBuilderOptions {
   // See //theia/matching/feature_matcher_options.h
   FeatureMatcherOptions matching_options;
 
+  // If true, a global image descriptor for each image is used to determine
+  // the k-nearest neighbor images, and feature matchign is only performed on
+  // these k-nearest neighbors. The desired value of "k" is given by setting
+  //   num_nearest_neighbors_for_global_descriptor_matching.
+  bool select_image_pairs_with_global_image_descriptor_matching = true;
+  int num_nearest_neighbors_for_global_descriptor_matching = 100;
+
+  // Specific options for Fisher Vector global feature extraction.
+  int num_gmm_clusters_for_fisher_vector = 16;
+  int max_num_features_for_fisher_vector_training = 1000000;
+
   // Options for estimating the reconstruction.
   // See //theia/sfm/reconstruction_estimator_options.h
   ReconstructionEstimatorOptions reconstruction_estimator_options;
-
-  // If you want the matches to be saved, set this variable to the filename that
-  // you want the matches to be written to. Image names, inlier matches, and
-  // view metadata so that the view graph and tracks may be exactly
-  // recreated.
-  std::string output_matches_file;
 };
 
 // Base class for building SfM reconstructions. This class will manage the
 // entire reconstruction estimation process.
 class ReconstructionBuilder {
  public:
-  explicit ReconstructionBuilder(const ReconstructionBuilderOptions& options);
+  ReconstructionBuilder(
+      const ReconstructionBuilderOptions& options,
+      FeaturesAndMatchesDatabase* features_and_matches_database);
+
+  // If the reconstruction and view graph are already known the reconstruction
+  // builder can take ownership of them and estimate the unestimated views and
+  // tracks in the reconstruction.
+  ReconstructionBuilder(const ReconstructionBuilderOptions& options,
+                        std::unique_ptr<Reconstruction> reconstruction,
+                        std::unique_ptr<ViewGraph> view_graph);
   ~ReconstructionBuilder();
 
   // Add an image to the reconstruction.
@@ -153,14 +173,6 @@ class ReconstructionBuilder {
 
   // Extracts features and performs matching with geometric verification.
   bool ExtractAndMatchFeatures();
-
-  // Initializes the reconstruction and view graph explicitly. This method
-  // should be used as an alternative to the Add* methods.
-  //
-  // NOTE: The ReconstructionBuilder takses ownership of the reconstruction and
-  // view graph.
-  void InitializeReconstructionAndViewGraph(Reconstruction* reconstruction,
-                                            ViewGraph* view_graph);
 
   // Estimates a Structure-from-Motion reconstruction using the specified
   // ReconstructionEstimator. Features are first extracted and matched if
@@ -195,6 +207,9 @@ class ReconstructionBuilder {
 
   // Container of image information.
   std::vector<std::string> image_filepaths_;
+
+  // A DB for storing features and matches.
+  FeaturesAndMatchesDatabase* features_and_matches_database_;
 
   // Module for performing feature extraction and matching.
   std::unique_ptr<FeatureExtractorAndMatcher> feature_extractor_and_matcher_;

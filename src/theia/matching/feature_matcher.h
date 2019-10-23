@@ -38,19 +38,17 @@
 #include <Eigen/Core>
 
 #include <memory>
-#include <mutex>  // NOLINT
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "theia/matching/feature_matcher_options.h"
-#include "theia/util/lru_cache.h"
 #include "theia/util/util.h"
 
 namespace theia {
+class FeaturesAndMatchesDatabase;
 class Keypoint;
-struct CameraIntrinsicsPrior;
 struct ImagePairMatch;
 struct IndexedFeatureMatche;
 struct KeypointsAndDescriptors;
@@ -78,26 +76,9 @@ struct KeypointsAndDescriptors;
 // matching.
 class FeatureMatcher {
  public:
-  explicit FeatureMatcher(const FeatureMatcherOptions& matcher_options);
-  virtual ~FeatureMatcher() {}
-
-  // Adds an image to the matcher with no known intrinsics for this image. The
-  // caller still owns the keypoints and descriptors so they must remain valid
-  // objects throughout the matching. The image name must be a unique identifier
-  // for the image.
-  virtual void AddImage(const std::string& image_name,
-                        const std::vector<Keypoint>& keypoints,
-                        const std::vector<Eigen::VectorXf>& descriptors);
-
-  // Adds an image to the matcher with the known camera intrinsics. The
-  // intrinsics (if known) are useful for geometric verification. The caller
-  // still owns the keypoints and descriptors so they must remain valid objects
-  // throughout the matching. The image name must be a unique identifier for the
-  // image.
-  virtual void AddImage(const std::string& image_name,
-                        const std::vector<Keypoint>& keypoints,
-                        const std::vector<Eigen::VectorXf>& descriptors,
-                        const CameraIntrinsicsPrior& intrinsics);
+  FeatureMatcher(const FeatureMatcherOptions& matcher_options,
+                 FeaturesAndMatchesDatabase* feature_and_matches_db);
+  virtual ~FeatureMatcher();
 
   // If features have been written to disk, the matcher can directly work with
   // them from the feature files so that you do not have to "add" them to the
@@ -107,16 +88,13 @@ class FeatureMatcher {
   //
   // Care must be taken to ensure that the filenames are formatted correctly.
   virtual void AddImage(const std::string& image_name);
-  virtual void AddImage(const std::string& image_name,
-                        const CameraIntrinsicsPrior& intrinsics);
-  // This method is essentially the same as AddImage() but run in batch.
-  virtual void AddImages(const std::vector<std::string>& image_names,
-                         const std::vector<CameraIntrinsicsPrior>& intrinsics);
 
+  // This method is essentially the same as AddImage() but run in batch.
+  virtual void AddImages(const std::vector<std::string>& image_names);
   // Matches features between all images. No geometric verification is
   // performed. Only the matches which pass the have greater than
   // min_num_feature_matches are returned.
-  virtual void MatchImages(std::vector<ImagePairMatch>* matches);
+  virtual void MatchImages();
 
   // Set the image pairs that will be matched when MatchImages or
   // MatchImagesWithGeometricVerification is called. This is an optional method;
@@ -138,8 +116,7 @@ class FeatureMatcher {
   // pairs_to_match_ between the specified indices. This is useful for thread
   // pooling.
   virtual void MatchAndVerifyImagePairs(const int start_index,
-                                        const int end_index,
-                                        std::vector<ImagePairMatch>* matches);
+                                        const int end_index);
 
   // Performs geometric verification. By making this a virtual method, derived
   // classes may implement custom verification methods (e.g., if rotations are
@@ -150,14 +127,6 @@ class FeatureMatcher {
       const KeypointsAndDescriptors& features2,
       const std::vector<IndexedFeatureMatch>& putative_matches,
       ImagePairMatch* image_pair_match);
-
-  // Fetches keypoints and descriptors from disk. This function is utilized by
-  // the internal cache to preserve memory.
-  std::shared_ptr<KeypointsAndDescriptors> FetchKeypointsAndDescriptorsFromDisk(
-      const std::string& features_file);
-
-  // Returns the filepath of the feature file given the image name.
-  std::string FeatureFilenameFromImage(const std::string& image);
 
   // Each Threadpool worker will perform matching on this many image pairs.  It
   // is more efficient to let each thread compute multiple matches at a time
@@ -170,14 +139,11 @@ class FeatureMatcher {
   // A container for the image names.
   std::vector<std::string> image_names_;
 
-  // An LRU cache that will manage the keypoints and descriptors of interest.
-  typedef LRUCache<std::string, std::shared_ptr<KeypointsAndDescriptors> >
-      KeypointAndDescriptorCache;
-  std::unique_ptr<KeypointAndDescriptorCache> keypoints_and_descriptors_cache_;
+  // DB to store and retrieve features and matches.
+  FeaturesAndMatchesDatabase* feature_and_matches_db_;
 
-  std::unordered_map<std::string, CameraIntrinsicsPrior> intrinsics_;
+  // Pairs that we will perform matching on.
   std::vector<std::pair<std::string, std::string> > pairs_to_match_;
-  std::mutex mutex_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(FeatureMatcher);
