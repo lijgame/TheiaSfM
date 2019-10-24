@@ -2,8 +2,8 @@
 # Input/output files.
 # Set these if a matches file is not present. Images should be a filepath with a
 # wildcard e.g., /home/my_username/my_images/*.jpg
---images=
---output_matches_file=
+--images=./*.JPG
+--output_matches_file=./recon/matches
 
 # If a matches file has already been created, set the filepath here. This avoids
 # having to recompute all features and matches.
@@ -13,26 +13,26 @@
 # explicit calibration. Theia attempts to extract EXIF focal lengths if calibration
 # is not supplied for a given image.
 --calibration_file=
---output_reconstruction=
+--output_reconstruction=./recon/result
 
 ############### Multithreading ###############
 # Set to the number of threads you want to use.
---num_threads=8
+--num_threads=40
 
 ############### Feature Extraction ###############
 --descriptor=SIFT
---feature_density=DENSE
+--feature_density=NORMAL
 
 ############### Matching Options ###############
 # Perform matching out-of-core. If set to true, the matching_working_directory
 # must be set to a valid, writable directory (the directory will be created if
 # it does not exits) Set to false to perform all-in-memory matching.
---match_out_of_core=true
+--match_out_of_core=false
 
 # During feature matching, features are saved to disk so that out-of-core
 # matching may be performed. This directory specifies which directory those
 # features should be saved to.
---matching_working_directory=
+--matching_working_directory=./recon/features/
 
 # During feature matching we utilize an LRU cache for out-of-core matching. The size
 # of that cache (in terms of number of images) is controlled by this parameter. The
@@ -40,7 +40,7 @@
 --matching_max_num_images_in_cache=128
 
 --matching_strategy=CASCADE_HASHING
---lowes_ratio=0.8
+--lowes_ratio=0.75
 --min_num_inliers_for_valid_match=30
 # NOTE: This threshold is relative to an image with a width of 1024 pixels. It
 # will be scaled appropriately based on the image resolutions. This allows a
@@ -49,11 +49,19 @@
 --bundle_adjust_two_view_geometry=true
 --keep_only_symmetric_matches=true
 
+# Global descriptor extractor settings. The global image descriptors are used to
+# speed up matching by selected the K most similar images for each image, and
+# only performing feature matching with these images.
+--num_nearest_neighbors_for_global_descriptor_matching=100
+--num_gmm_clusters_for_fisher_vector=16
+--max_num_features_for_fisher_vector_training=1000000
+
 ############### General SfM Options ###############
+# GLOBAL or INCREMENTAL
 --reconstruction_estimator=INCREMENTAL
 --min_track_length=2
 --max_track_length=50
---reconstruct_largest_connected_component=true
+--reconstruct_largest_connected_component=false
 
 # Set to true if all views were captured with the same camera. If true, then a
 # single set of camera intrinsic parameters will be used for all views in the
@@ -122,6 +130,30 @@
 # After BA, remove any points that have a reprojection error greater
 # than this.
 --max_reprojection_error_pixels=4.0
+
+############### Track Subsampling Options ###############
+
+# If true, the estimated tracks are subsampled for bundle adjustment to increase
+# the efficiency of BA. Tracks are chosen in a way which attempts to constraint
+# BA as best as possible. This has been shown to provide a significant speedup
+# without reducing the accuracy much (in fact, it increases the accuracy in some
+# cases).
+--subsample_tracks_for_bundle_adjustment=false
+
+# Subsampled tracks are chosen with a probability related to their track
+# length. We limit the effect of long tracks by capping the track length at this
+# value for the purpose of selecting tracks.
+--track_subset_selection_long_track_length_threshold=10
+
+# Tracks are chosen in a way that ensures each view is spatially
+# constraind. Tracks are first binned in an image grid and the top ranked track
+# is chosen for optimization from each grid cell to ensure good spatial coverage
+# of the image. The grid cells are set to be this size.
+--track_selection_image_grid_cell_size_pixels=100
+
+# Tracks are chosen such that each image observes at least this many tracks
+#  which are being optimized. This ensures that each image is well-constrained.
+--min_num_optimized_tracks_per_view=100
 
 ############### Triangulation Options ###############
 --min_triangulation_angle_degrees=4.0
