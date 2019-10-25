@@ -20,6 +20,7 @@
 --num_threads=40
 
 ############### Feature Extraction ###############
+# AKAZE or SIFT
 --descriptor=SIFT
 --feature_density=NORMAL
 

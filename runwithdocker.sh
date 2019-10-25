@@ -8,4 +8,3 @@ docker run -it --rm --runtime=nvidia -u $(id -u):$(id -g) \
 -w /theiasfm \
 lijgame/dev:theiasfm \
 ./reconstruct.sh /data
-echo "$PWD"
